@@ -13,7 +13,25 @@ import (
 	"text/template"
 )
 
+//go:embed templates
 var tmplFS embed.FS
+
+var componentPaths = map[string][]string{
+	"api": {
+		"cmd/api",
+		"internal/app/api",
+		"internal/router/router_api",
+	},
+	"admin": {
+		"cmd/admin",
+		"internal/app/admin",
+		"internal/router/router_admin",
+	},
+	"task": {
+		"cmd/task",
+		"internal/app/task",
+	},
+}
 
 type Opts struct {
 	Project string
@@ -30,7 +48,7 @@ type TplData struct {
 
 func main() {
 	if len(os.Args) < 2 || os.Args[1] != "create" {
-		fmt.Println("Usage: go run scaffold.go create <projectName> --module=<module> --port=8080 --with=api,admin")
+		fmt.Println("Usage: go run scaffold.go create <projectName> --module=<module> --port=8080 --with=api,admin,task")
 		os.Exit(1)
 	}
 
@@ -65,7 +83,7 @@ func main() {
 		os.Exit(2)
 	}
 	fmt.Println("✅ Done. Next:")
-	fmt.Printf("cd %s && go mod tidy && go run ./cmd/api\n", project)
+	fmt.Printf("cd %s && go mod tidy && go run ./cmd/api/main.go start -c settings/local.json\n", project)
 }
 
 func parseWith(s string) map[string]bool {
@@ -97,30 +115,16 @@ func run(o Opts) error {
 
 		rel := strings.TrimPrefix(path, "templates/")
 		dst := filepath.Join(dstRoot, rel)
+
+		if shouldSkip(rel, o.With) {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+
 		if d.IsDir() {
-			// 组件过滤：若选择只要 api，不生成 admin 的目录
-			if strings.HasPrefix(rel, "cmd/api") && !o.With["api"] {
-				return fs.SkipDir
-			}
-			if strings.HasPrefix(rel, "cmd/admin") && !o.With["admin"] {
-				return fs.SkipDir
-			}
-
-			if strings.HasPrefix(rel, "cmd/task") && !o.With["task"] {
-				return fs.SkipDir
-			}
 			return os.MkdirAll(dst, 0o755)
-		}
-
-		// 组件过滤（文件级）
-		if strings.HasPrefix(rel, "cmd/api") && !o.With["api"] {
-			return nil
-		}
-		if strings.HasPrefix(rel, "cmd/admin") && !o.With["admin"] {
-			return nil
-		}
-		if strings.HasPrefix(rel, "cmd/task") && !o.With["task"] {
-			return nil
 		}
 
 		b, readErr := fs.ReadFile(tmplFS, path)
@@ -158,4 +162,20 @@ func writeFile(dst string, b []byte) error {
 		return errors.New("file exists: " + dst)
 	}
 	return os.WriteFile(dst, b, 0o644)
+}
+
+func shouldSkip(rel string, with map[string]bool) bool {
+	for component, prefixes := range componentPaths {
+		if with[component] {
+			continue
+		}
+		for _, prefix := range prefixes {
+			if rel == prefix ||
+				strings.HasPrefix(rel, prefix+"/") ||
+				strings.HasPrefix(rel, prefix+".") {
+				return true
+			}
+		}
+	}
+	return false
 }
