@@ -1,0 +1,70 @@
+package render
+
+import (
+	"{{ .Module }}/pkg/log"
+	"net/http"
+	"reflect"
+
+	"github.com/gin-gonic/gin"
+)
+
+type RespJsonData struct {
+	Code int         `json:"code"`
+	Msg  string      `json:"message"`
+	Data interface{} `json:"data"`
+}
+
+func Unauthorized(c *gin.Context, msg string) {
+	result := &RespJsonData{
+		Code: http.StatusUnauthorized,
+		Msg:  msg,
+	}
+	c.AbortWithStatusJSON(http.StatusUnauthorized, result)
+}
+
+func JsonError(c *gin.Context, errorType error, data interface{}) {
+	var code int
+	var exists bool
+	if reflect.TypeOf(errorType).Comparable() {
+		code, exists = ErrorCodeMap[errorType]
+	}
+
+	code, exists = ErrorCodeMap[errorType]
+	if !exists {
+		// 不存在则是系统异常
+		code = ErrorCodeMap[ErrorServiceError]
+		if errorType != nil {
+			data = errorType.Error()
+		}
+		errorType = ErrorServiceError
+	}
+	var msg string
+	if errorType != nil {
+		msg = errorType.Error()
+	}
+	if code != Ok {
+		log.Log.Errorf("Request:%s, Code:%d, Msg:%s,Data:%v", c.Request.RequestURI, code, msg, data)
+	}
+	result := &RespJsonData{
+		Code: code,
+		Msg:  msg,
+		Data: data,
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func JsonOk(c *gin.Context, data interface{}) {
+	result := &RespJsonData{
+		Code: Ok,
+		Data: data,
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func HandlerReturn(c *gin.Context, err error, data interface{}) {
+	if err != nil {
+		JsonError(c, err, nil)
+		return
+	}
+	JsonOk(c, data)
+}

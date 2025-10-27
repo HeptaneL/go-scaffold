@@ -1,0 +1,111 @@
+package cmd
+
+import (
+	"{{ .Module }}/internal/bootstrap"
+	"{{ .Module }}/internal/router"
+	"{{ .Module }}/internal/service"
+	"{{ .Module }}/pkg/log"
+	"{{ .Module }}/pkg/mysql"
+	"{{ .Module }}/pkg/redis"
+	"{{ .Module }}/pkg/s3"
+	"{{ .Module }}/pkg/wrapper"
+	"context"
+	"fmt"
+	"net/http"
+	"syscall"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	svc "github.com/judwhite/go-svc"
+	"github.com/spf13/cobra"
+)
+
+type Application struct {
+	wrapper    wrapper.Wrapper
+	ginEngine  *gin.Engine
+	httpServer *http.Server
+}
+
+var cfgFile *string
+
+var startCmd = &cobra.Command{
+	Use:   "start",
+	Short: "Start the server",
+	Long:  `usage example: ./server start -c config.json`,
+	Run: func(cmd *cobra.Command, args []string) {
+		app := &Application{}
+		if err := svc.Run(app, syscall.SIGINT, syscall.SIGTERM); err != nil {
+			fmt.Println(err)
+		}
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(startCmd)
+	cfgFile = startCmd.Flags().StringP("config", "c", "", "api config file (required)")
+	startCmd.MarkFlagRequired("config")
+}
+func (app *Application) Init(env svc.Environment) error {
+	cfg, err := bootstrap.Init(cfgFile)
+	if err != nil {
+		return err
+	}
+
+	log.Init(&cfg.Logger)
+	log.Log.Info("Api Server Init...")
+
+	if err = mysql.Init(&cfg.MySql); err != nil {
+		return err
+	}
+	log.Log.Info("mysql load success...")
+
+	redis.Init(&cfg.Redis)
+	log.Log.Info("redis load success...")
+
+	if err = s3.Init(&cfg.S3); err != nil {
+		log.Log.Errorf("s3 init error:%v", err)
+		return err
+	}
+	log.Log.Info("s3 init success...")
+
+	if err = service.Init(); err != nil {
+		return err
+	}
+	log.Log.Info("service init success...")
+
+	app.ginEngine = router.InitApiRouter(&cfg)
+	return nil
+}
+
+func (app *Application) Start() error {
+	cfg := bootstrap.GetConfig().Server
+	app.wrapper.Wrap(func() {
+		app.httpServer = &http.Server{
+			Handler:           app.ginEngine,
+			Addr:              cfg.ListenAddr,
+			ReadHeaderTimeout: cfg.ReadHeaderTimeout * time.Second,
+			ReadTimeout:       cfg.ReadTimeout * time.Second,
+			WriteTimeout:      cfg.WriteTimeout * time.Second,
+			IdleTimeout:       cfg.IdleTimeout * time.Second,
+			MaxHeaderBytes:    cfg.MaxHeaderBytes,
+		}
+		if err := app.httpServer.ListenAndServe(); err != nil {
+			log.Log.Error(err)
+		}
+	})
+
+	fmt.Println("Api Server Started, Listen at:", cfg.ListenAddr)
+	return nil
+}
+
+func (app *Application) Stop() error {
+	fmt.Println("Api Server stopping...")
+	if app.httpServer != nil {
+		if err := app.httpServer.Shutdown(context.Background()); err != nil {
+			log.Log.Infof("Api Server shutdown error:%v\n", err)
+		}
+		log.Log.Info("Api Server shutdown")
+	}
+	return nil
+
+}

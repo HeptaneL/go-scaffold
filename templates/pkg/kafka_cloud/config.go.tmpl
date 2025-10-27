@@ -1,0 +1,19 @@
+////go:build !windows
+//// +build !windows
+
+package kafka_cloud
+
+type KafkaConfig struct {
+	BootstrapServers      string `json:"bootstrap_servers"`
+	CloudBootstrapServers string `json:"cloud_bootstrap_servers"`
+	CloudAccessKey        string `json:"cloud_access_key"`
+	CloudSecretToken      string `json:"cloud_secret_token"`
+	CloudRegion           string `json:"cloud_region"`
+	UserName              string `json:"user_name"`
+	Password              string `json:"password"`
+}
+
+const (
+	EarliestOffset = "earliest"
+	LatestOffset   = "latest"
+)

@@ -1,0 +1,70 @@
+package log
+
+import (
+	"{{ .Module }}/pkg/http_tool"
+	"net/http"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+)
+
+// GinLogger is the zap logger handler
+func GinLogger(logger *zap.SugaredLogger, notLogged ...string) gin.HandlerFunc {
+	var skip map[string]struct{}
+
+	if length := len(notLogged); length > 0 {
+		skip = make(map[string]struct{}, length)
+
+		for _, p := range notLogged {
+			skip[p] = struct{}{}
+		}
+	}
+
+	return func(c *gin.Context) {
+		path := c.Request.URL.Path
+		if _, ok := skip[path]; ok {
+			return
+		}
+
+		start := time.Now()
+		c.Next()
+		stop := time.Since(start)
+
+		latency := stop.Milliseconds()
+		statusCode := c.Writer.Status()
+		clientIP := c.ClientIP()
+		userAgent := c.Request.UserAgent()
+		userId := http_tool.GetCurrentUserId(c)
+		referer := c.Request.Referer()
+		dataLength := c.Writer.Size()
+
+		entry := logger.With(
+			zap.Int64("user_id", userId),
+			zap.Int("status_code", statusCode),
+			zap.Int64("latency", latency),
+			zap.String("client_ip", clientIP),
+			zap.String("method", c.Request.Method),
+			zap.String("path", path),
+			zap.String("referer", referer),
+			zap.Int("data_length", dataLength),
+			zap.String("user_agent", userAgent),
+		)
+
+		if len(c.Errors) > 0 {
+			entry.Error(c.Errors.ByType(gin.ErrorTypePrivate).String())
+		} else {
+			if statusCode >= http.StatusInternalServerError {
+				entry.Errorf("%s %s %s %d", clientIP, c.Request.Method, path, statusCode)
+			} else if statusCode >= http.StatusBadRequest {
+				entry.Warnf("%s %s %s %d", clientIP, c.Request.Method, path, statusCode)
+			} else {
+				if latency > 150 {
+					entry.Warnf("%s %s %s %d", clientIP, c.Request.Method, path, statusCode)
+				} else {
+					entry.Infof("%s %s %s %d", clientIP, c.Request.Method, path, statusCode)
+				}
+			}
+		}
+	}
+}

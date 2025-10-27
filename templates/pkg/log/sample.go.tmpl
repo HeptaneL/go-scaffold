@@ -1,0 +1,38 @@
+package log
+
+import (
+	"math/rand"
+	"time"
+)
+
+// SampleLogger provides sampling-based logging functionality
+type SampleLogger struct {
+	sampleRate float64
+	rnd        *rand.Rand
+}
+
+// NewSampleLogger creates a new SampleLogger with the given sample rate (0.0 to 1.0)
+func NewSampleLogger(sampleRate float64) *SampleLogger {
+	return &SampleLogger{
+		sampleRate: sampleRate,
+		rnd:        rand.New(rand.NewSource(time.Now().UnixNano())),
+	}
+}
+
+// LogWithSample logs the execution time of the given function if it falls within the sample rate
+func (sl *SampleLogger) LogWithSample(name string, fn func()) {
+	if sl.rnd.Float64() <= sl.sampleRate {
+		start := time.Now()
+		fn()
+		elapsed := time.Since(start)
+		Log.Infof("[SAMPLE] %s took %v", name, elapsed)
+	} else {
+		fn()
+	}
+}
+
+func (sl *SampleLogger) Infof(format string, args ...interface{}) {
+	if sl.rnd.Float64() <= sl.sampleRate {
+		Log.Infof(format, args...)
+	}
+}

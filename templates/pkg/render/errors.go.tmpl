@@ -1,0 +1,317 @@
+package render
+
+import "errors"
+
+var ErrorParams = errors.New("parameter error") // 参数错误
+var UnauthorizedOperation = errors.New("unauthorized operation")
+var ErrorUserNoPermission = errors.New("user does not have permission to perform this operation")                                                      // 无权限操作
+var ErrorServiceError = errors.New("service error")                                                                                                    // 服务异常
+var ErrorFileNotFound = errors.New("file does not exist")                                                                                              // 文件不存在
+var ErrorFileNotAllowExt = errors.New("the file type is not supported")                                                                                // 文件类型不支持
+var ErrorSignatureVerifyFailed = errors.New("signature verify failed")                                                                                 // 签名验证失败
+var ErrorLoginFailed = errors.New("login failed")                                                                                                      // 登录失败
+var ErrorParticleParamErrorUuidOrToken = errors.New("invalid parameter: particle uuid or token is empty")                                              // 参数错误，Particle的uuid或者token为空
+var ErrorUserInfoError = errors.New("user info error")                                                                                                 // 用户信息错误
+var ErrorUserNameIsExist = errors.New("the user name already exists")                                                                                  // 用户名已存在
+var ErrorUnsupportedUserType = errors.New("unsupported user type")                                                                                     // 用户类型不支持
+var ErrorCreatorNotFound = errors.New("creator does not exist")                                                                                        // 创作者不存在
+var ErrorCreatorAlreadyClaim = errors.New("the creator has been claimed")                                                                              // 创作者已被认领
+var ErrorCreatorClaimRecordNotFound = errors.New("creator claim record does not exist")                                                                // 创作者认领记录不存在
+var ErrorCreatorClaimRecordStatusError = errors.New("creator claim record status error")                                                               // 创作者认领状态异常
+var ErrorCreatorClaimRecordAuthFailed = errors.New("creator claim verification failed")                                                                // 创作者认领验证失败
+var ErrorCreatorClaimUrlNotSupport = errors.New("creator claim link not supported")                                                                    // 创作者认领链接不支持
+var ErrorCreatorClaimUrlIncorrect = errors.New("the creator claim link is incorrect")                                                                  // 创作者认领链接有误
+var ErrorParticleAuthError = errors.New("particle auth error")                                                                                         // particle认证错误
+var ErrorCreditPlanNotFound = errors.New("credit plan not found")                                                                                      // 积分方案不存在
+var ErrorCreditPlanBuyCountExceed = errors.New("credit plan buy exceed")                                                                               // 积分方案购买次数超限
+var ErrorCreditsBalanceNotEnough = errors.New("credits balance not enough")                                                                            // 积分余额不足
+var ErrorSessionNotFound = errors.New("session not found")                                                                                             // 会话不存在
+var ErrorUserChatMessageNotFound = errors.New("user chat message not found")                                                                           // 用户聊天消息不存在
+var ErrorUserChatMessageCanNotChange = errors.New("user chat message can not change")                                                                  // 用户聊天消息无法修改
+var ErrorUserChatMessageShareLazyWeight = errors.New("the number of chat messages shared by users is insufficient")                                    // 用户聊天消息分享数量不足
+var ErrorUserChatMessageShareSummaryLazyWeight = errors.New("the number of summary messages for the user's chat message sharing settings must be two") // 用户聊天消息分享设置的摘要消息数量有误
+var ErrorUserSummaryChatMessageMustShare = errors.New("summary messages must be shared")                                                               // 摘要的消息必须分享
+var ErrorUserShareChatNotFound = errors.New("user chat sharing history does not exist")                                                                // 用户聊天消息分享不存在
+var ErrorCharacterNotFound = errors.New("character not found")                                                                                         // 人物不存在
+var ErrorCanNotBlockSelfCharacter = errors.New("unable to block your character")                                                                       // 无法拉黑自己的机器人
+var ErrorShareChatNotFound = errors.New("share chat not exist")
+var ErrorShareChatExist = errors.New("share chat exist") // 聊天分享不存在
+// var ErrorCharacterAvatarOwner = errors.New("you are not character avatar owner")
+var ErrorPromptLength = errors.New("prompt length is over 150")
+var ErrorTaglineLength = errors.New("tagline at least 20 characters")
+var ErrorCharacterNameEmpty = errors.New("name cannot be empty")
+var ErrorCharacterContainsChildSex = errors.New("prompt contains children pornography")
+var ErrorCharacterContainsAdultContent = errors.New("prompt may contains adult content")
+
+var ErrorShareChatMessageLessThan6 = errors.New("share chat message count less than 6")                                         // 聊天分享消息不足6条
+var ErrorCharacterAvatarNotFound = errors.New("character avatar not found")                                                     // 人物头像不存在
+var ErrorCharacterAvatarStatusError = errors.New("character avatar status error")                                               // 人物头像状态异常
+var ErrorExpendTokenError = errors.New("expend token count error")                                                              // 消耗token数有误
+var ErrorUserPersonaNotFound = errors.New("user persona not found")                                                             // 用户角色不存在
+var ErrorCannotDeleteDefaultPersona = errors.New("cannot delete default persona")                                               // 默认角色不可以删除
+var ErrorCannotDeleteTgBot = errors.New("cannot delete tg bot")                                                                 // 默认角色不可以删除
+var ErrorDefaultPersonaNotFound = errors.New("default persona does not exist")                                                  // 默认角色不存在
+var ErrorOrderNotFound = errors.New("order not found")                                                                          // 订单不存在
+var ErrorOrderStatusError = errors.New("order status error")                                                                    // 订单状态错误
+var ErrorPaymentStatusError = errors.New("payment status error")                                                                // 支付状态错误
+var ErrorPaymentAmountError = errors.New("payment amount error")                                                                // 支付金额有误
+var ErrorTagNotFound = errors.New("tag not found")                                                                              // 标签不存在
+var ErrorTgBotNotFound = errors.New("tg bot not found")                                                                         // tg bot 不存在
+var ErrorInviteCodeNotNull = errors.New("the invite code cannot be empty")                                                      // 邀请码不能为空
+var ErrorInviteCodeNotExist = errors.New("the invite code does not exist")                                                      // 邀请码不存在
+var ErrorInviteCodePleaseEnter = errors.New("please enter the invite code")                                                     // 请输入邀请码
+var ErrorInviteCodeIsInvalid = errors.New("the invitation code is invalid")                                                     // 邀请码已失效
+var ErrorAlphaUserCountIsMax = errors.New("the current quota is full")                                                          // 当前内测名额已满员
+var ErrorUserCharacterSyncHasTaskRunning = errors.New("the user synchronization robot has a task in progress")                  // 用户同步机器人有任务正在运行中
+var ErrorUserInviteCodeUpdateLimit = errors.New("the number of times the invitation code was modified reached the upper limit") // 修改邀请码的次数达到上限
+var ErrorUserInviteCodeIsNotNormative = errors.New("the invitation code does not comply with the specification")                // 邀请码不符合规范
+var ErrorUserNameIsNotNormative = errors.New("the user name does not comply with the specification")                            // 用户名不符合规范
+var ErrorUserInviteCodeAlreadyExists = errors.New("the invitation code already exists")                                         // 邀请码已存在
+var ErrorUserNameUpdateLimit = errors.New("the number of times the user name was modified reached the upper limit")             // 修改用戶名的次数达到上限
+var ErrorMessageToLong = errors.New("message too long")                                                                         // 消息过长
+var ErrorEmailFormattedError = errors.New("the email is not formatted correctly")                                               // 邮件格式不正确
+var ErrorTodayAlreadyCheckin = errors.New("today already checkin")                                                              // 今日已签到
+var ErrorTwitterUrlInvalid = errors.New("invalid twitter url")                                                                  // 无效的Twitter链接
+var ErrorTwitterHasSubmitForTask = errors.New("twitter have been submitted for this task")                                      // Twitter已提交过此任务
+var ErrorShareCharacterHasSubmitForTask = errors.New("share character have been submitted for this task")                       // 机器人已提交过此任务
+var ErrorShareChatHasSubmitForTask = errors.New("share chat have been submitted for this task")                                 // 聊天记录已提交过此任务
+var ErrorTwitterContentFailed = errors.New("failed to fetch twitter content")                                                   // 获取推文内容失败
+var ErrorTwitterContentNotFindShareChat = errors.New("twitter not found to share chat")                                         // 推文中未找到分享的聊天
+var ErrorTwitterContentNotFindShareCharacter = errors.New("twitter not found to share character")                               // 推文中未找到分享的机器人
+var ErrorTodayHasCompletedThisCreditsTask = errors.New("the credits task has been completed today")                             // 今日已完成过该积分任务
+var ErrorHasCompletedThisCreditsTask = errors.New("the credits task has been completed")                                        // 已完成过该积分任务
+var ErrorTodayNoCharactersAvatarsAreGenerated = errors.New("no characters avatars are generated today")
+var ErrorRedditUrlInvalid = errors.New("invalid reddit url")
+var ErrorQualityRedditHasSubmitForTask = errors.New("reddit have been submitted for this task")
+var ErrorQualityRedditHasSubmitByOther = errors.New("reddit have been submitted by other user")
+var ErrorTiktokUrlInvalid = errors.New("invalid tiktok url")
+var ErrorQualityTiktokHasSubmitForTask = errors.New("tiktok have been submitted for this task")
+var ErrorQualityTiktokHasSubmitByOther = errors.New("tiktok have been submitted by other user")
+var ErrorQualityPromotionApproveHasDone = errors.New("quality promotion approve is done")
+var ErrorNotCompletedThisCreditsTask = errors.New("the credits task not completed")
+var ErrorHasReceiveCreditsThisTask = errors.New("the credits for this task has received")
+var ErrorInvalidUrl = errors.New("invalid url")
+var ErrorTwitterPublisher = errors.New("you are not the publisher of this tweet")
+
+var ErrorSubscribeNotExist = errors.New("the subscription not exist")
+var ErrorNotEligibleDiscount = errors.New("Not eligible for discount ")
+var ErrorCreateSubscriptionPay = errors.New("create subscription pay error")
+var ErrorSubscribePeriodInsufficient = errors.New("insufficient period balance") // 权益余额不足
+var ErrorSubscribePayNotFound = errors.New("subscribe order not found")
+var ErrorSubscribeCancel = errors.New("subscribe cancel error")
+var ErrorAlchemypayNeedEmail = errors.New("alchemypay need a valid email")
+var ErrorTasteOnlyOnce = errors.New("taste can only be purchased once")
+
+// 生成对话图片失败
+var ErrorCreateConversationImageFail = errors.New("create conversation image fail")
+var ErrorConversationForHighLevel = errors.New("generate conversation image only for deluxe or prestige") // 对话图片仅提供给2 3 档用户使用
+
+var ErrorSubscribeStarAuth = errors.New("subscribe star auth failed")         // 未获取到subscribe star授权
+var ErrorPatreonAuth = errors.New("patreon auth failed")                      // 未获取到patreon授权
+var ErrorPatreonSubscribeNotFound = errors.New("patreon subscribe not found") // 未查询到patreon的订阅信息
+
+var ErrorCommissionBalanceNotEnough = errors.New("commission balance not enough")           // 佣金余额不足
+var ErrorWithdrawNotReachThreshold = errors.New("commission withdraw not reach threshold")  // 佣金提现未达到门槛
+var ErrorWithdraw = errors.New("commission withdraw error")                                 // 佣金提现异常
+var ErrorWithdrawWalletAddress = errors.New("commission withdraw wallet address incorrect") // 提现钱包格式错误
+var ErrorWithdrawNotReachGasFee = errors.New("withdrawal amount does not meet the gas fee") // 提现金额不满足手续费
+var TelegramAuthExpired = errors.New("telegram validation has expired")                     // Telegram 验证已过期
+var TelegramAuthFailed = errors.New("telegram validation failed")                           // Telegram 验证失败
+var TelegramCreditsPackageNotExist = errors.New("credits gift package not exist")           // Telegram 积分礼包不存在
+var TelegramCreditsPackageExpired = errors.New("credits gift package has expired")          // Telegram 积分礼包过期
+var TelegramCreditsPackageGetFailed = errors.New("credits gift package receive failed")     // Telegram 积分礼包领取失败
+var TelegramNoRegister = errors.New("no register in telegram app")                          // Telegram未注册
+var TelegramNotYetJoinTheCommunity = errors.New("not yet join the community")               // 尚未加入telegram社区
+var TelegramNotYetJoinTheChannel = errors.New("not yet join the channel")                   // 尚未加入telegram频道
+var ErrorCommissionOpenApplyExist = errors.New("commission apply exist")                    // 已经存在待审核的开通申请
+var ErrorCommissionNoNeedApply = errors.New("commission already open")                      // 已经开通无需申请
+var ErrorUsernameInvalid = errors.New("input username invalid")                             // 输入的用户名无效
+var ErrorClaimUserTon = errors.New("claim ton error")                                       // 领取ton失败
+var ErrorNotificationAddressMoreThan200 = errors.New("notification address more than 500")
+var ErrorTgBotMoreThan5 = errors.New("user tg bots more than 5")
+var ErrorClaimUserTonInSufficient = errors.New("claim ton insufficient balance") // 没有可领取的ton
+
+var ErrorRedPacketDoesNotExist = errors.New("red packet does not exist")                       // 红包不存在
+var ErrorRedPacketNotInProcess = errors.New("red packet not in process")                       // 红包状态不在进行中
+var ErrorNotJoinedBot3MiniApp = errors.New("You haven't joined Bot3's mini app")               // 未加入bot3小程序
+var ErrorNotJoinedBot3Community = errors.New("You haven't joined Bot3's Community")            // 未加入bot3社群
+var ErrorNotEnoughChatMessage = errors.New("The chat message quota has been reached.")         // 聊天消息数量不足
+var ErrorRedPacketAlreadyClaimed = errors.New("You have already claimed the red envelope.")    // 已经领取过红包
+var ErrorRedPacketClaimedByOthers = errors.New("The red envelope has been claimed by others.") // 红包已被他人领取
+
+var ErrorPuzzleNotFound = errors.New("puzzle not found")                               // 未发现该拼图
+var ErrorPuzzleTodayAlreadyBuy = errors.New("today already buy puzzle")                // 今天存在已购买或未完成的订单
+var ErrorPuzzleAlreadyHelp = errors.New("friend can not light the same puzzle twice")  // 已经助力过不能助力第二次
+var ErrorPuzzleAlreadyFinishOrExpired = errors.New("puzzle already finish or expired") // 拼图已经完成or已过期
+var ErrorPuzzleRewardAlreadyClaimed = errors.New("puzzle reward already claim")        // 拼图奖励已经领取过
+var ErrorPuzzleNotMeetCondition = errors.New("puzzle not meeting the condition")       // 拼图还未满足领取条件
+
+var ErrorContinuousDaysNotEnough = errors.New("continuous days not enough") // 连续天数不足
+var ErrorNotFoundAssetContract = errors.New("asset contract not found")     // 资产合约不存在
+var ErrorNotEnoughClaimTimes = errors.New("not enough claim times")         // 剩余claim次数不足
+var ErrorClaimUserJetton = errors.New("claim jetton error")                 // 领取ton失败
+var ErrorUnsupportedProject = errors.New("unsupported project")             // 不支持的项目
+
+var ErrorTwitterAuthFailed = errors.New("X account verification failed") // 推特验证失败
+var ErrorTwitterAlreadyLinked = errors.New("X account already linked")   // 推特已绑定
+
+var ErrorNotRewardOwner = errors.New("not reward's owner")
+var ErrorAnnouncementTopLimit = errors.New("activity announcement limit 3 reached") // 置顶公共标签不能超过3条
+
+const Ok = 0
+
+// ErrorCodeMap 错误码映射
+var ErrorCodeMap = map[error]int{
+	// 公共
+	ErrorParams:              100001,
+	ErrorServiceError:        100002,
+	UnauthorizedOperation:    100003,
+	ErrorEmailFormattedError: 100004,
+	ErrorUserNoPermission:    100005,
+	// 文件相关
+	ErrorFileNotFound:    101001,
+	ErrorFileNotAllowExt: 101002,
+	// 用户及认证
+	ErrorLoginFailed:                     102001,
+	ErrorUserInfoError:                   102002,
+	ErrorUnsupportedUserType:             102003,
+	ErrorInviteCodeNotNull:               102004,
+	ErrorInviteCodeNotExist:              102005,
+	ErrorInviteCodePleaseEnter:           102006,
+	ErrorInviteCodeIsInvalid:             102007,
+	ErrorAlphaUserCountIsMax:             102008,
+	ErrorUserNameIsExist:                 102009,
+	ErrorCreatorAlreadyClaim:             102010,
+	ErrorCreatorClaimRecordNotFound:      102011,
+	ErrorCreatorClaimRecordStatusError:   102012,
+	ErrorCreatorClaimRecordAuthFailed:    102013,
+	ErrorCreatorNotFound:                 102014,
+	ErrorCreatorClaimUrlNotSupport:       102015,
+	ErrorCreatorClaimUrlIncorrect:        102016,
+	ErrorUserCharacterSyncHasTaskRunning: 102017,
+	ErrorUserInviteCodeUpdateLimit:       102018,
+	ErrorUserInviteCodeAlreadyExists:     102019,
+	ErrorUserNameUpdateLimit:             102020,
+	ErrorUserInviteCodeIsNotNormative:    102021,
+	ErrorUserNameIsNotNormative:          102022,
+	ErrorTodayAlreadyCheckin:             102023,
+	TelegramAuthExpired:                  102024,
+	TelegramAuthFailed:                   102025,
+	TelegramNotYetJoinTheCommunity:       102026,
+	TelegramCreditsPackageNotExist:       102027,
+	TelegramCreditsPackageExpired:        102028,
+	TelegramCreditsPackageGetFailed:      102029,
+	TelegramNoRegister:                   102030,
+	TelegramNotYetJoinTheChannel:         102031,
+	// 积分
+	ErrorCreditPlanNotFound:                   103001,
+	ErrorCreditsBalanceNotEnough:              103002,
+	ErrorTwitterUrlInvalid:                    103003,
+	ErrorTwitterHasSubmitForTask:              103004,
+	ErrorTwitterContentFailed:                 103005,
+	ErrorTwitterContentNotFindShareChat:       103006,
+	ErrorShareChatMessageLessThan6:            103007,
+	ErrorShareChatHasSubmitForTask:            103008,
+	ErrorTodayHasCompletedThisCreditsTask:     103009,
+	ErrorTodayNoCharactersAvatarsAreGenerated: 103010,
+	ErrorHasCompletedThisCreditsTask:          103011,
+	ErrorShareCharacterHasSubmitForTask:       103012,
+	ErrorRedditUrlInvalid:                     103013,
+	ErrorQualityRedditHasSubmitForTask:        103014,
+	ErrorQualityRedditHasSubmitByOther:        103015,
+	ErrorTiktokUrlInvalid:                     103016,
+	ErrorQualityTiktokHasSubmitForTask:        103017,
+	ErrorQualityTiktokHasSubmitByOther:        103018,
+	ErrorQualityPromotionApproveHasDone:       103019,
+	ErrorNotCompletedThisCreditsTask:          103020,
+	ErrorHasReceiveCreditsThisTask:            103021,
+	ErrorTwitterContentNotFindShareCharacter:  103022,
+	ErrorInvalidUrl:                           103022,
+	ErrorTwitterPublisher:                     103023,
+	// 用户聊天
+	ErrorSessionNotFound:                       104001,
+	ErrorUserChatMessageNotFound:               104002,
+	ErrorCharacterNotFound:                     104003,
+	ErrorExpendTokenError:                      104004,
+	ErrorUserChatMessageCanNotChange:           104005,
+	ErrorUserChatMessageShareLazyWeight:        104006,
+	ErrorUserChatMessageShareSummaryLazyWeight: 104007,
+	ErrorUserSummaryChatMessageMustShare:       104008,
+	ErrorUserShareChatNotFound:                 104009,
+	ErrorCharacterAvatarNotFound:               104010,
+	ErrorCharacterAvatarStatusError:            104011,
+	ErrorMessageToLong:                         104012,
+	ErrorCanNotBlockSelfCharacter:              104013,
+	ErrorShareChatNotFound:                     104014,
+	ErrorShareChatExist:                        104015,
+	// ErrorCharacterAvatarOwner:                  104016,
+	ErrorPromptLength:                  104017,
+	ErrorTaglineLength:                 104018,
+	ErrorCharacterNameEmpty:            104019,
+	ErrorCharacterContainsChildSex:     104020,
+	ErrorCharacterContainsAdultContent: 104021,
+	// 用户角色
+	ErrorUserPersonaNotFound:        105001,
+	ErrorCannotDeleteDefaultPersona: 105002,
+	ErrorDefaultPersonaNotFound:     105003,
+	// 订单或支付
+	ErrorOrderNotFound:      106001,
+	ErrorOrderStatusError:   106002,
+	ErrorPaymentStatusError: 106003,
+	ErrorPaymentAmountError: 106004,
+	// 标签
+	ErrorTagNotFound: 107001,
+	// 订阅
+	ErrorSubscribeNotExist:           108001,
+	ErrorCreateSubscriptionPay:       108002,
+	ErrorSubscribePeriodInsufficient: 108003,
+	ErrorNotEligibleDiscount:         108004,
+	ErrorSubscribePayNotFound:        108005,
+	ErrorSubscribeCancel:             108006,
+	ErrorAlchemypayNeedEmail:         108007,
+	ErrorTasteOnlyOnce:               108008,
+
+	ErrorCreateConversationImageFail: 109001,
+	ErrorConversationForHighLevel:    109002,
+
+	ErrorSubscribeStarAuth:        110001,
+	ErrorPatreonAuth:              110002,
+	ErrorPatreonSubscribeNotFound: 110003,
+
+	ErrorCommissionBalanceNotEnough: 110101,
+	ErrorWithdrawNotReachThreshold:  110102,
+	ErrorWithdraw:                   110103,
+	ErrorWithdrawWalletAddress:      110104,
+	ErrorWithdrawNotReachGasFee:     110105,
+	ErrorCommissionOpenApplyExist:   110106,
+	ErrorCommissionNoNeedApply:      110107,
+
+	ErrorUsernameInvalid:          110203,
+	ErrorClaimUserTon:             110204,
+	ErrorClaimUserTonInSufficient: 110205,
+
+	ErrorRedPacketDoesNotExist:    111001,
+	ErrorRedPacketNotInProcess:    111002,
+	ErrorNotJoinedBot3MiniApp:     111003,
+	ErrorNotEnoughChatMessage:     111004,
+	ErrorNotJoinedBot3Community:   111005,
+	ErrorRedPacketAlreadyClaimed:  111006,
+	ErrorRedPacketClaimedByOthers: 111007,
+
+	ErrorPuzzleNotFound:               112001,
+	ErrorPuzzleTodayAlreadyBuy:        112002,
+	ErrorPuzzleAlreadyHelp:            112003,
+	ErrorPuzzleAlreadyFinishOrExpired: 112004,
+	ErrorPuzzleRewardAlreadyClaimed:   112005,
+	ErrorPuzzleNotMeetCondition:       112006,
+
+	ErrorContinuousDaysNotEnough: 113001,
+	ErrorNotFoundAssetContract:   114001,
+	ErrorNotEnoughClaimTimes:     114002,
+	ErrorClaimUserJetton:         114003,
+	ErrorUnsupportedProject:      114004,
+	ErrorCannotDeleteTgBot:       114005,
+
+	// 公共标签错误码
+	ErrorAnnouncementTopLimit: 115001,
+}

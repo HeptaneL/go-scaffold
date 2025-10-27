@@ -1,0 +1,17 @@
+package router
+
+import (
+	api_handler "{{ .Module }}/internal/app/api"
+	"{{ .Module }}/internal/bootstrap"
+
+	"github.com/gin-gonic/gin"
+)
+
+func InitApiRouter(cfg *bootstrap.Configuration) *gin.Engine {
+	r := InitDefaultRouter(cfg)
+	v1 := r.Group("/api")
+	{
+		v1.GET("/ping", api_handler.Pong)
+	}
+	return r
+}

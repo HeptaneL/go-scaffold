@@ -1,0 +1,155 @@
+package s3
+
+import (
+	"{{ .Module }}/pkg/log"
+	"bytes"
+	"context"
+	"crypto/md5"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
+	"net/http"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
+)
+
+type client struct {
+	Minio      *minio.Client
+	BucketName string
+}
+
+type S3Config struct {
+	AccessKey string `json:"access_key"`
+	SecretKey string `json:"secret_key"`
+	Bucket    string `json:"bucket"`
+	BaseUrl   string `json:"base_url"`
+}
+
+const (
+	// DefaultS3Entrypoint S3 默认访问端点
+	DefaultS3Entrypoint = "s3.amazonaws.com"
+	// DefaultS3Region S3 默认区域
+	DefaultS3Region = "us-east-2"
+)
+
+var cli *client
+
+func Init(c *S3Config) error {
+	minioCli, err := minio.New(DefaultS3Entrypoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(c.AccessKey, c.SecretKey, ""),
+		Secure: true,
+		Region: DefaultS3Region,
+	})
+	if err != nil {
+		return fmt.Errorf("init minio client: %w", err)
+	}
+
+	cli = &client{
+		Minio:      minioCli,
+		BucketName: c.Bucket,
+	}
+	return nil
+}
+
+// Upload 自动读取 io.Reader 并上传到 S3 指定路径
+func Upload(src io.Reader, size int64, target string) (string, error) {
+	if strings.HasPrefix(target, "/") {
+		target = strings.TrimPrefix(target, "/")
+	}
+
+	if containsDir(target) {
+		_, err := cli.Minio.PutObject(context.Background(), cli.BucketName, path.Dir(target)+"/", bytes.NewReader([]byte("")), 0, minio.PutObjectOptions{SendContentMd5: true})
+		if err != nil {
+			return "", err
+		}
+	}
+
+	contentType := mime.TypeByExtension(path.Ext(target))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	_, err := cli.Minio.PutObject(context.Background(), cli.BucketName, target, src, size, minio.PutObjectOptions{
+		ContentType: contentType,
+	})
+	if err != nil {
+		log.Log.Errorf("failed to upload file: %v", err)
+		return "", err
+	}
+	if !strings.HasPrefix(target, "/") {
+		target = "/" + target
+	}
+
+	return target, nil
+}
+
+// UploadBytes 从 bytes 读取文件, 并上传到 S3 指定路径
+func UploadBytes(src []byte, target string) (string, error) {
+	return Upload(bytes.NewReader(src), int64(len(src)), target)
+}
+
+func UploadMultipartFile(file multipart.File, fileHeader *multipart.FileHeader, dir string) (string, error) {
+	originFilename := filepath.Base(fileHeader.Filename)
+	ext := path.Ext(originFilename)
+	size := fileHeader.Size
+	buffer := make([]byte, size)
+	_, _ = file.Read(buffer)
+	sh := md5.New()
+	sh.Write(buffer)
+
+	imageNameHash := hex.EncodeToString(sh.Sum([]byte("")))
+	fileName := fmt.Sprintf("/upload%s/%s%s", dir, imageNameHash, ext)
+	return UploadBytes(buffer, fileName)
+}
+
+// UploadURL 从 URL 下载文件, 并上传到 S3 指定路径
+func UploadURL(url, target string) (string, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	return Upload(resp.Body, resp.ContentLength, target)
+}
+
+// Download 从 S3 下载指定 Object
+func Download(src string) (io.ReadCloser, error) {
+	return cli.Minio.GetObject(context.Background(), cli.BucketName, src, minio.GetObjectOptions{
+		Checksum: true,
+	})
+}
+
+// Download2Local 从 S3 下载文件并保存到本地
+func Download2Local(src, target string) error {
+	if containsDir(target) {
+		if err := os.MkdirAll(path.Dir(target), 0755); err != nil {
+			return err
+		}
+	}
+
+	obj, err := Download(src)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = obj.Close() }()
+
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, obj)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(target, buf.Bytes(), 0644)
+}
+
+func containsDir(filePath string) bool {
+	dir := filepath.Dir(filePath)
+	rootPath := string(filepath.Separator)
+
+	return dir != rootPath && strings.Contains(dir, rootPath)
+}

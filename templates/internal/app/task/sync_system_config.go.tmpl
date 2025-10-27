@@ -1,0 +1,22 @@
+package task
+
+import (
+	"{{ .Module }}/pkg/log"
+	"runtime/debug"
+)
+
+func SyncSystemConfig() {
+	jobName := "SyncSystemConfig"
+	defer func() {
+		if r := recover(); r != nil {
+			log.Log.Errorf("Task [%s] Panic: %v: %s", jobName, r, string(debug.Stack()))
+		}
+	}()
+	if isRunning(jobName) {
+		log.Log.Infof("%s is already running, skipping this execution", jobName)
+		return
+	}
+	defer func() { stopJob(jobName) }()
+	log.Log.Infof("Running %s...", jobName)
+
+}

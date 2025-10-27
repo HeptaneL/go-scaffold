@@ -1,0 +1,126 @@
+package bootstrap
+
+import (
+	"{{ .Module }}/pkg/clickhouse"
+	"{{ .Module }}/pkg/es"
+	"{{ .Module }}/pkg/kafka_cloud"
+	"{{ .Module }}/pkg/log"
+	"{{ .Module }}/pkg/mysql"
+	"{{ .Module }}/pkg/rabbit_mq_client"
+	"{{ .Module }}/pkg/redis"
+	"{{ .Module }}/pkg/s3"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/jinzhu/configor"
+)
+
+var (
+	Cfg Configuration
+
+	mu sync.RWMutex
+)
+
+type (
+	Configuration struct {
+		Server     ServerConfig                    `json:"server"`
+		App        AppConfig                       `json:"app"`
+		Logger     log.LoggerConfig                `json:"logger"`
+		S3         s3.S3Config                     `json:"s3"`
+		MySql      mysql.MysqlConfig               `json:"mysql"`
+		Redis      redis.RedisConfig               `json:"redis"`
+		Elastic    es.ElasticConfig                `json:"elastic"`
+		RabbitMq   rabbit_mq_client.RabbitMqConfig `json:"rabbitMq"`
+		ClickHouse clickhouse.ClickHouseConfig     `json:"click_house"`
+		Kafka      kafka_cloud.KafkaConfig         `json:"kafka"`
+	}
+
+	ServerConfig struct {
+		RunMode           string        `json:"run_mode"`
+		ListenAddr        string        `json:"listen_addr"`
+		LimitConnection   int           `json:"limit_connection"`
+		RootRouterPrefix  string        `json:"root_router_prefix"`
+		ReadHeaderTimeout time.Duration `json:"read_header_timeout"`
+		ReadTimeout       time.Duration `json:"read_timeout"`
+		WriteTimeout      time.Duration `json:"write_timeout"`
+		IdleTimeout       time.Duration `json:"idle_timeout"`
+		MaxHeaderBytes    int           `json:"max_header_bytes"`
+		MaxMultipartSize  int64         `json:"max_multipart_size"`
+	}
+
+	AppConfig struct {
+		Secret  string `json:"secret" default:"secret"`
+		Env     string `json:"env" default:"dev"`
+		Project string `json:"project" default:"UnicornX"`
+	}
+
+	LoggerConfig struct {
+		Level          string        `json:"level"`
+		Formatter      string        `json:"formatter"`
+		DisableConsole bool          `json:"disable_console"`
+		Write          bool          `json:"write"`
+		Path           string        `json:"path"`
+		FileName       string        `json:"file_name"`
+		MaxAge         time.Duration `json:"max_age"`
+		RotationTime   time.Duration `json:"rotation_time"`
+		Debug          bool          `json:"debug"`
+		ReportCaller   bool          `json:"report_caller"`
+	}
+)
+
+func (o AppConfig) IsProd() bool {
+	return o.Env == "prod"
+}
+
+func Init(file *string) (Configuration, error) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	err := configor.Load(&Cfg, *file)
+	if err != nil {
+		return Configuration{}, err
+	}
+	return Cfg, err
+}
+
+func GetConfig() Configuration {
+	mu.RLock()
+	defer mu.RUnlock()
+	return Cfg
+}
+
+// Env 返回当前运行环境字符串
+func Env() string {
+	return Cfg.App.Env
+}
+
+// IsProd 返回当前是否运行在 prod 环境
+func IsProd() bool {
+	return Cfg.App.Env == "prod"
+}
+
+// IsLocal 返回当前是否运行在 local 环境
+func IsLocal() bool {
+	return Cfg.App.Env == "local"
+}
+
+// S3PublicURL 返回 S3 对外公开基础地址
+func S3PublicURL() string {
+	return Cfg.S3.BaseUrl
+}
+
+// FormatToS3Public 将相对路径格式化为可公开访问的 S3 地址
+func FormatToS3Public(addr string) string {
+	if addr == "" {
+		return ""
+	}
+
+	if !strings.HasPrefix(addr, "https://") && !strings.HasPrefix(addr, "http://") {
+		if !strings.HasPrefix(addr, "/") {
+			return S3PublicURL() + "/" + addr
+		}
+		return S3PublicURL() + addr
+	}
+	return addr
+}

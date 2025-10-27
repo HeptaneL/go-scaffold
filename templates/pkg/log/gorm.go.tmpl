@@ -1,0 +1,96 @@
+package log
+
+import (
+	"context"
+	"errors"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	"time"
+)
+
+type GormLogger struct {
+	LogLevel      logger.LogLevel
+	SlowThreshold time.Duration
+	Logger        *zap.SugaredLogger
+}
+
+func NewGormLogger(log *zap.SugaredLogger) *GormLogger {
+	var level logger.LogLevel
+	switch log.Level() {
+	case zapcore.FatalLevel:
+		level = logger.Silent
+	case zapcore.PanicLevel:
+		level = logger.Silent
+	case zapcore.ErrorLevel:
+		level = logger.Error
+	case zapcore.WarnLevel:
+		level = logger.Error
+	case zapcore.InfoLevel:
+		level = logger.Warn
+	case zapcore.DebugLevel:
+		level = logger.Info
+	default:
+		panic("unhandled default case")
+	}
+	// 使用全局log派生一个gorm专用的log，跳过4层调用，指向真实的调用位置
+	gormLogger := log.Desugar().WithOptions(zap.AddCallerSkip(4)).Sugar()
+	return &GormLogger{
+		LogLevel:      level,
+		SlowThreshold: 200 * time.Millisecond,
+		Logger:        gormLogger,
+	}
+}
+
+// LogMode 设置日志级别
+func (l *GormLogger) LogMode(level logger.LogLevel) logger.Interface {
+	newLogger := *l
+	newLogger.LogLevel = level
+	return &newLogger
+}
+
+// Info 记录信息日志
+func (l *GormLogger) Info(ctx context.Context, msg string, data ...interface{}) {
+	if l.LogLevel >= logger.Info {
+		l.Logger.Infof(msg, data...)
+	}
+}
+
+// Warn 记录警告日志
+func (l *GormLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
+	if l.LogLevel >= logger.Warn {
+		l.Logger.Warnf(msg, data...)
+	}
+}
+
+// Error 记录错误日志
+func (l *GormLogger) Error(ctx context.Context, msg string, data ...interface{}) {
+	if l.LogLevel >= logger.Error {
+		l.Logger.Errorf(msg, data...)
+	}
+}
+
+// Trace 记录 SQL 跟踪日志
+func (l *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
+	if l.LogLevel <= logger.Silent {
+		return
+	}
+
+	elapsed := time.Since(begin)
+	sql, rows := fc()
+
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		l.Logger.With(zap.Duration("elapsed", elapsed), zap.Int64("rows", rows)).Errorf("%s, %s", sql, err)
+		return
+	}
+
+	if l.SlowThreshold != 0 && elapsed > l.SlowThreshold {
+		l.Logger.With(zap.Bool("slow_sql", true), zap.Duration("elapsed", elapsed), zap.Int64("rows", rows)).Warnf("%s", sql)
+		return
+	}
+
+	if l.LogLevel > logger.Info { // 先不打印info
+		l.Logger.With(zap.Duration("elapsed", elapsed), zap.Int64("rows", rows)).Info(sql)
+	}
+}

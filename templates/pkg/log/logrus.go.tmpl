@@ -1,0 +1,94 @@
+package log
+
+import (
+	"fmt"
+	"github.com/sirupsen/logrus"
+	"io"
+	"os"
+	"path"
+	"time"
+)
+
+// var Log = logrus.StandardLogger()
+
+type PlainFormatter struct {
+	Hostname        string
+	TimestampFormat string
+	LevelDesc       []string
+}
+
+func (f *PlainFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+	funcName := fmt.Sprintf("%s:%d %s:", path.Base(entry.Caller.File), entry.Caller.Line, path.Base(entry.Caller.Function))
+	return []byte(fmt.Sprintf("[%s] %s %s %s %s\n", f.Hostname, entry.Time.Format(f.TimestampFormat), f.LevelDesc[entry.Level], funcName, entry.Message)), nil
+}
+
+func NewPlainFormatter() *PlainFormatter {
+	hostName, err := os.Hostname()
+	if err != nil {
+		hostName = "unknown"
+	}
+
+	return &PlainFormatter{
+		Hostname:        hostName,
+		TimestampFormat: "2006-01-02 15:04:05",
+		LevelDesc:       []string{"PANC", "FATL", "ERRO", "WARN", "INFO", "DEBG", "TRAC"},
+	}
+}
+
+var (
+	defaultLogDir       = "./logs"
+	defaultLogFile      = "daily.log"
+	defaultLogPathTpl   = ".%Y-%m-%d"
+	defaultMaxAge       = 7 * 24 * time.Hour
+	defaultRotationTime = 24 * time.Hour
+	defaultLocation     = "Asia/Shanghai"
+)
+
+func InitLogrus(cfg *LoggerConfig) {
+	if cfg == nil {
+		panic("logger config is nil")
+	}
+
+	// loc, err := time.LoadLocation(defaultLocation)
+	// if err != nil {
+	// 	panic(fmt.Sprintf("failed to load location: %v", err))
+	// }
+
+	var output io.Writer
+	// if cfg.Write {
+	// 	logDir := defaultLogDir
+	// 	if cfg.Path != "" {
+	// 		logDir = cfg.Path
+	// 	}
+	// 	logFile := defaultLogFile
+	// 	if cfg.FileName != "" {
+	// 		logFile = cfg.FileName
+	// 	}
+	//
+	// 	writer, err := rotatelogs.New(
+	// 		filepath.Join(logDir, logFile)+defaultLogPathTpl,
+	// 		rotatelogs.WithClock(rotatelogs.Local),
+	// 		rotatelogs.WithMaxAge(defaultMaxAge),
+	// 		rotatelogs.WithRotationTime(defaultRotationTime),
+	// 		rotatelogs.WithLocation(loc),
+	// 		rotatelogs.WithLinkName(filepath.Join(logDir, logFile)),
+	// 	)
+	// 	if err != nil {
+	// 		panic(fmt.Sprintf("rotatelogs log failed: %s", err.Error()))
+	// 	}
+	//
+	// 	output = io.MultiWriter(os.Stdout, writer)
+	// } else {
+	output = os.Stdout
+	// }
+
+	level, err := logrus.ParseLevel(cfg.Level)
+	if err != nil {
+		level = logrus.InfoLevel
+	}
+
+	logrus.SetOutput(output)
+	logrus.SetReportCaller(true)
+	logrus.SetFormatter(NewPlainFormatter())
+	logrus.SetLevel(level)
+}

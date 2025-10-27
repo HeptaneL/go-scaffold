@@ -1,0 +1,86 @@
+package clickhouse
+
+import (
+	"{{ .Module }}/pkg/log"
+	"fmt"
+	"sync"
+	"time"
+
+	clickhouseNative "github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"gorm.io/driver/clickhouse"
+	"gorm.io/gorm"
+)
+
+var (
+	once       sync.Once
+	db         *gorm.DB
+	nativeConn driver.Conn
+)
+
+type ClickHouseConfig struct {
+	Addr     string `json:"addr"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+func Init(cfg *ClickHouseConfig) error {
+	var err error
+	once.Do(
+		func() {
+			dsn := fmt.Sprintf("clickhouse://%s:%s@%s/default?secure=true&dial_timeout=100s&read_timeout=200s",
+				cfg.Username, cfg.Password, cfg.Addr)
+
+			db, err = gorm.Open(clickhouse.Open(dsn), &gorm.Config{
+				Logger: log.NewGormLogger(log.Log),
+			})
+			if err != nil {
+				return
+			}
+			idb, _ := db.DB()
+			idb.SetConnMaxIdleTime(120 * time.Second)
+			idb.SetConnMaxLifetime(7200 * time.Second)
+			idb.SetMaxOpenConns(500)
+			idb.SetMaxIdleConns(100)
+			if err := idb.Ping(); err != nil {
+				return
+			}
+
+			nativeConn, err = clickhouseNative.Open(&clickhouseNative.Options{
+				Addr: []string{cfg.Addr},
+				Auth: clickhouseNative.Auth{
+					Database: "default",
+					Username: cfg.Username,
+					Password: cfg.Password,
+				},
+				ReadTimeout: 15 * time.Second,
+			})
+			if err != nil {
+				return
+			}
+		})
+
+	return err
+}
+
+func GetDb() *gorm.DB {
+	return db
+}
+
+func GetRawDb() driver.Conn {
+	return nativeConn
+}
+
+func Close() error {
+	fmt.Println("close clickhouse connect")
+	if db != nil {
+		idb, err := db.DB()
+		if err == nil {
+			return idb.Close()
+		}
+	}
+	if nativeConn != nil {
+		nativeConn.Close()
+	}
+	return nil
+}

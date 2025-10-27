@@ -1,0 +1,142 @@
+package cmd
+
+import (
+	"{{ .Module }}/internal/app/task"
+	"{{ .Module }}/internal/bootstrap"
+	"{{ .Module }}/internal/service"
+	"{{ .Module }}/pkg/clickhouse"
+	"{{ .Module }}/pkg/es"
+	"{{ .Module }}/pkg/log"
+	"{{ .Module }}/pkg/mysql"
+	"{{ .Module }}/pkg/redis"
+	"{{ .Module }}/pkg/s3"
+	"context"
+	"fmt"
+	"os"
+	"os/signal"
+	"runtime"
+	"runtime/pprof"
+	"syscall"
+	"time"
+
+	"github.com/judwhite/go-svc"
+	"github.com/robfig/cron/v3"
+	"github.com/spf13/cobra"
+)
+
+type Application struct {
+	config bootstrap.Configuration
+	cron   *cron.Cron
+}
+
+var cfgFile *string
+
+var startCmd = &cobra.Command{
+	Use:   "start",
+	Short: "start the task",
+	Long: `usage example:
+	server(.exe) start -c config.json
+	start the task`,
+	Run: func(cmd *cobra.Command, args []string) {
+		go func() {
+			ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+			defer cancel()
+
+			<-ctx.Done()
+			fmt.Println("Task Shutting Down...")
+		}()
+		app := &Application{}
+		if err := svc.Run(app, syscall.SIGINT, syscall.SIGTERM); err != nil {
+			fmt.Println(err)
+		}
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(startCmd)
+	cfgFile = startCmd.Flags().StringP("config", "c", "", "task config file (required)")
+	_ = startCmd.MarkFlagRequired("config")
+}
+
+func (app *Application) Init(_ svc.Environment) error {
+	cfg, err := bootstrap.Init(cfgFile)
+	if err != nil {
+		return err
+	}
+
+	log.Init(&cfg.Logger)
+	log.Log.Info("Task Server Init...")
+
+	if err = mysql.Init(&cfg.MySql); err != nil {
+		return err
+	}
+	log.Log.Info("mysql load success...")
+
+	if err = clickhouse.Init(&cfg.ClickHouse); err != nil {
+		return err
+	}
+	log.Log.Info("clickhouse load success...")
+
+	if err = es.Init(&cfg.Elastic); err != nil {
+		return err
+	}
+	log.Log.Info("elasticsearch init success...")
+
+	redis.Init(&cfg.Redis)
+	log.Log.Info("redis load success...")
+
+	if err = s3.Init(&cfg.S3); err != nil {
+		log.Log.Errorf("s3 init error:%v", err)
+		return err
+	}
+	log.Log.Info("s3 init success...")
+
+	if err = service.Init(); err != nil {
+		return err
+	}
+	log.Log.Info("service init success...")
+
+	utcLocation, _ := time.LoadLocation("UTC") // 使用UTC时间
+	app.cron = cron.New(cron.WithSeconds(), cron.WithLocation(utcLocation))
+	app.config = cfg
+
+	// 同步系统配置
+	_, _ = app.cron.AddFunc("@every 1s", task.SyncSystemConfig)
+
+	return nil
+
+}
+
+func (app *Application) Start() error {
+	app.cron.Start()
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			var m runtime.MemStats
+			runtime.ReadMemStats(&m)
+			heapAlloc := float64(m.HeapAlloc) / 1024 / 1024
+			log.Log.Info("memory HeapAlloc:", heapAlloc)
+			if heapAlloc > 1500 {
+				filename := "./logs/" + time.Now().Format("20060102_150405") + ".heap"
+				f, err := os.Create(filename)
+				if err != nil {
+					log.Log.Info("could not create memory profile: %v", err)
+					continue
+				}
+				// 第二个参数 debug=0 只写概要，=1 包含更多信息
+				if err := pprof.WriteHeapProfile(f); err != nil {
+					log.Log.Infof("could not write memory profile: %v", err)
+				}
+				f.Close()
+				log.Log.Infof("memory heap profile written to %s", filename)
+			}
+		}
+	}()
+	return nil
+}
+
+func (app *Application) Stop() error {
+	app.cron.Stop()
+	return nil
+}

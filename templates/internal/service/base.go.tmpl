@@ -1,0 +1,20 @@
+package service
+
+import "sync"
+
+type BaseService struct {
+}
+
+var (
+	once        sync.Once
+	UserService *UserServ
+)
+
+func Init() error {
+	bs := &BaseService{}
+	var err error
+	once.Do(func() {
+		UserService = NewUserService(bs)
+	})
+	return err
+}

@@ -1,0 +1,74 @@
+package redis
+
+import (
+	"{{ .Module }}/pkg/log"
+	"context"
+	"fmt"
+	"strconv"
+
+	"github.com/go-redis/redis/v8"
+)
+
+var RedisClient *redis.Client
+
+type RedisConfig struct {
+	Host      string `json:"host"`
+	Port      int    `json:"port"`
+	EnableTLS bool   `json:"enable_tls"` // 是否开启 TLS
+	Auth      string `json:"auth"`
+	MaxIdle   int    `json:"max_idle"`   // 最大空闲连接数
+	MaxActive int    `json:"max_active"` // 最大连接数
+	Db        int    `json:"db"`         // 使用数据库
+}
+
+func Init(redisConfig *RedisConfig) error {
+	RedisClient = redis.NewClient(&redis.Options{
+		Addr:         fmt.Sprintf("%s:%d", redisConfig.Host, redisConfig.Port),
+		Password:     redisConfig.Auth,
+		DB:           redisConfig.Db,
+		PoolSize:     redisConfig.MaxActive,
+		MinIdleConns: redisConfig.MaxIdle,
+	})
+	return nil
+}
+
+var ctx = context.Background()
+
+func AddScore(setName string, id int64, initialScore float64) error {
+	idStr := strconv.FormatInt(id, 10)
+	return RedisClient.ZAdd(ctx, setName, &redis.Z{Score: initialScore, Member: idStr}).Err()
+}
+
+func GetScoreRankById(setName string, id int64) (int64, error) {
+	idStr := strconv.FormatInt(id, 10)
+	rank, err := RedisClient.ZRevRank(ctx, setName, idStr).Result()
+	if err != nil {
+		return -1, err
+	}
+	return rank + 1, nil
+}
+
+func DeleteScore(setName string, id int64) error {
+	idStr := strconv.FormatInt(id, 10)
+	return RedisClient.ZRem(ctx, setName, idStr).Err()
+}
+
+func GetScoreById(setName string, id int64) (float64, error) {
+	idStr := strconv.FormatInt(id, 10)
+	score, err := RedisClient.ZScore(ctx, setName, idStr).Result()
+	if err != nil {
+		return 0, err
+	}
+	return score, nil
+}
+
+func DeleteKey(setName string) error {
+	return RedisClient.Del(ctx, setName).Err()
+}
+
+func DeleteKeyNoError(setName string) {
+	err := DeleteKey(setName)
+	if err != nil {
+		log.Log.Errorf("redis delete key [%s] err:%s", setName, err.Error())
+	}
+}

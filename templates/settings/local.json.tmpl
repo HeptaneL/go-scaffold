@@ -1,0 +1,74 @@
+{
+  "app": {
+    "env": "local",
+    "project": "",
+    "secret": "shs82cnqmato536ygfe8al0o8o0mk8jh"
+  },
+  "server": {
+    "run_mode": "debug",
+    "listen_addr": ":8001",
+    "limit_connection": 10000,
+    "root_router_prefix": "api",
+    "read_header_timeout": 10,
+    "read_timeout": 60,
+    "write_timeout": 60,
+    "idle_timeout": 120,
+    "max_header_bytes": 1048576,
+    "max_multipart_size": 1048576
+  },
+  "logger": {
+    "level": "info",
+    "disable_console": false,
+    "write": false,
+    "path": "./logs",
+    "file_name": "dev-daily",
+    "max_age": 24,
+    "rotation_time": 168,
+    "debug": true
+  },
+  "s3": {
+    "access_key": "",
+    "secret_key": "",
+    "bucket": "",
+    "base_url": ""
+  },
+  "mysql": {
+    "driver": "mysql",
+    "host": "",
+    "port": "",
+    "user": "",
+    "password": "",
+    "db_name": ""
+  },
+  "redis": {
+    "host": "",
+    "port": 6379,
+    "enable_tls": false,
+    "auth": "",
+    "max_idle": 20,
+    "max_active": 100,
+    "db": 0
+  },
+  "rabbitMq": {
+    "userName": "",
+    "password": "",
+    "host": "",
+    "port": 5675,
+    "virtualHost": "/"
+  },
+  "click_house": {
+    "addr": "",
+    "username": "",
+    "password": ""
+  },
+  "elastic": {
+    "username": "",
+    "password": "",
+    "url": ""
+  },
+  "kafka": {
+    "bootstrap_servers": "",
+    "user_name": "",
+    "password": ""
+  }
+}

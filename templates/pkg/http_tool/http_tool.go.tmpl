@@ -1,0 +1,198 @@
+package http_tool
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/dgrijalva/jwt-go"
+	"github.com/gin-gonic/gin"
+)
+
+func IsFailureStatusCode(resp *http.Response) bool {
+	return resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusBadRequest
+}
+
+func GetHttpRequest(url string, header map[string]string) ([]byte, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, nil
+	}
+
+	req.Header.Add("accept", "application/json")
+	if header != nil {
+		for k, v := range header {
+			req.Header.Add(k, v)
+		}
+	}
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			IdleConnTimeout:       60 * time.Second,
+			TLSHandshakeTimeout:   5 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+		},
+		Timeout: 10 * time.Second,
+	}
+	response, err := httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if response != nil {
+		defer func(Body io.ReadCloser) {
+			err = Body.Close()
+			if err != nil {
+			}
+		}(response.Body)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return io.ReadAll(response.Body)
+}
+
+// PostHttpRequest 发送Post请求，json格式数据
+func PostHttpRequest(url string, header map[string]string, params interface{}) ([]byte, error) {
+	var payload io.Reader
+	if params != nil {
+		param, _ := json.Marshal(params)
+		payload = bytes.NewBuffer(param)
+	}
+	request, err := http.NewRequest("POST", url, payload)
+	if nil != err {
+		return nil, err
+	}
+
+	if header != nil {
+		for k, v := range header {
+			request.Header.Add(k, v)
+		}
+	}
+	request.Header.Set("Content-Type", "application/json")
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			IdleConnTimeout:       60 * time.Second,
+			TLSHandshakeTimeout:   5 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+		},
+		Timeout: 10 * time.Second,
+	}
+
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	if response != nil {
+		defer func(Body io.ReadCloser) {
+			_ = Body.Close()
+		}(response.Body)
+	}
+	if response.StatusCode != 200 {
+		return nil, errors.New("status Code is not ok")
+	}
+	return io.ReadAll(response.Body)
+}
+func RequestWithToken(method string, api string, params interface{}, accessToken string, header map[string]string) (int, []byte, error) {
+	var payload io.Reader
+	if params != nil {
+		param, _ := json.Marshal(params)
+		payload = bytes.NewBuffer(param)
+	}
+	req, err := http.NewRequest(method, api, payload)
+	if err != nil {
+		return 0, nil, err
+	}
+	if len(accessToken) != 0 {
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	}
+	for k, v := range header {
+		req.Header.Add(k, v)
+	}
+	if req.Header.Get("Content-Type") == "" {
+		req.Header.Add("Content-Type", "application/json")
+	}
+
+	httpClient := http.Client{
+		Transport: &http.Transport{
+			IdleConnTimeout:       60 * time.Second,
+			TLSHandshakeTimeout:   5 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+		},
+	}
+	res, err := httpClient.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(res.Body)
+	resBody, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return 0, nil, err
+	}
+	return res.StatusCode, resBody, nil
+}
+
+type AccountAuthClaims struct {
+	UserId int64 `json:"user_id"`
+	jwt.StandardClaims
+}
+
+// GetCurrentUserIdUint64 获取当前用户ID
+func GetCurrentUserIdUint64(c *gin.Context) uint64 {
+	return uint64(GetCurrentUserId(c))
+}
+func GetCurrentUserId(c *gin.Context) int64 {
+	claims, ok := c.Get("claims")
+	var userId int64
+	if !ok {
+		userId = 0
+	} else {
+		authClaims := claims.(*AccountAuthClaims)
+		userId = authClaims.UserId
+	}
+	return userId
+}
+
+func GetCurrentDevice(c *gin.Context) string {
+	deviceId := c.Request.Header.Get("X-Device-id")
+	return deviceId
+}
+
+// GetCurrentLanguage 获取当前用户语言 - 如果没传会返回默认语言
+func GetCurrentLanguage(c *gin.Context) LanguageType {
+	languageStr := c.Request.Header.Get("X-Language")
+	return Str2LanguageType(languageStr)
+}
+
+func GetWithRetry(url string, retries int) (*http.Response, error) {
+	for i := 0; i < retries; i++ {
+		resp, err := http.Get(url)
+		if err == nil {
+			return resp, nil
+		}
+		time.Sleep(2 * time.Second) // 等待后重试
+	}
+	return nil, fmt.Errorf("failed after %d retries", retries)
+}
+
+func GetClientIP(request *http.Request) string {
+	var ip string
+	ipStr := request.Header.Get("X-Forwarded-For")
+	ipArr := strings.Split(ipStr, ",")
+	ip = ipArr[0]
+	if strings.Contains(ip, "127.0.0.1") || ip == "" {
+		ipStr1 := request.Header.Get("X-real-ip")
+		ipArr1 := strings.Split(ipStr1, ",")
+		ip = ipArr1[0]
+	}
+	if ip == "" {
+		ip = "127.0.0.1"
+	}
+	return ip
+}

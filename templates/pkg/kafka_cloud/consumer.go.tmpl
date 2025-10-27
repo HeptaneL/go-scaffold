@@ -1,0 +1,74 @@
+//go:build !windows
+// +build !windows
+
+package kafka_cloud
+
+import (
+	"fmt"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+)
+
+func NewConsumer(kafkaConfig KafkaConfig, groupId string, autoOffsetReset string, instanceId ...string) (*kafka.Consumer, error) {
+	configMap := &kafka.ConfigMap{
+		"bootstrap.servers":        kafkaConfig.BootstrapServers,
+		"group.id":                 groupId,
+		"go.events.channel.enable": true,
+		"auto.offset.reset":        autoOffsetReset,
+		// 元数据刷新间隔（被动刷新）
+		"metadata.max.age.ms": 10000, // 每 10 秒强制刷新元数据
+		// 主动刷新间隔（定期向 broker 拉取 metadata）
+		"topic.metadata.refresh.interval.ms": 10000, // 每 10 秒刷新一次
+		// 连接失败时重连延迟
+		"reconnect.backoff.ms":     100,
+		"reconnect.backoff.max.ms": 10000,
+		// 网络稳定性参数
+		"socket.keepalive.enable": true,
+		// （推荐）开启自动恢复分区 leader
+		"enable.partition.eof": false,
+	}
+	if len(instanceId) > 0 {
+		_ = configMap.SetKey("group.instance.id", instanceId[0])
+	}
+	consumer, err := kafka.NewConsumer(configMap)
+	if err != nil {
+		fmt.Printf("NewConsumer failed: %s \r\n", err)
+		return nil, err
+	}
+
+	return consumer, nil
+}
+
+func Consume(consumer *kafka.Consumer, stopChain chan struct{}, process func(msg *kafka.Message, err error)) {
+	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				fmt.Printf("Consumer error: %v\nstack:%s\n", err, GetCurrentGoroutineStack())
+			}
+			fmt.Println("stop consume")
+			if consumer != nil {
+				_ = consumer.Close()
+			}
+		}()
+
+		run := true
+		for run {
+			select {
+			case sig := <-stopChain:
+				fmt.Printf("Caught signal %v: terminating\n", sig)
+				run = false
+			case e := <-consumer.Events():
+				switch ev := e.(type) {
+				case *kafka.Message:
+					//fmt.Printf("Message on %s: %s\n", ev.TopicPartition, string(ev.Value))
+					process(ev, nil)
+				case kafka.Error:
+					fmt.Printf("Kafka error: %v\n", ev)
+					process(nil, ev)
+				default:
+					// 可选处理其他事件
+				}
+			}
+		}
+	}()
+}

@@ -1,0 +1,41 @@
+package http_tool
+
+import "strings"
+
+// LanguageType 语言类型
+type LanguageType string
+
+const (
+	LanguageTypeEn LanguageType = "en" // 英语
+	LanguageTypeZh LanguageType = "zh" // 中文
+	LanguageTypeEs LanguageType = "es" // 西班牙语
+	LanguageTypeFr LanguageType = "fr" // 法语
+	LanguageTypeDe LanguageType = "de" // 德语
+	LanguageTypeJa LanguageType = "ja" // 日语
+	LanguageTypePt LanguageType = "pt" // 葡萄牙语
+	LanguageTypeRu LanguageType = "ru" // 俄语
+	LanguageTypeKo LanguageType = "ko" // 韩语
+
+	LanguageTypeDefault = LanguageTypeEn // 默认语言
+)
+
+var languageTypeMap = map[string]LanguageType{
+	string(LanguageTypeEn): LanguageTypeEn,
+	string(LanguageTypeZh): LanguageTypeZh,
+	string(LanguageTypeEs): LanguageTypeEs,
+	string(LanguageTypeFr): LanguageTypeFr,
+	string(LanguageTypeDe): LanguageTypeDe,
+	string(LanguageTypeJa): LanguageTypeJa,
+	string(LanguageTypePt): LanguageTypePt,
+	string(LanguageTypeRu): LanguageTypeRu,
+	string(LanguageTypeKo): LanguageTypeKo,
+}
+
+func Str2LanguageType(code string) LanguageType {
+	lType, ok := languageTypeMap[strings.ToLower(code)]
+	if ok {
+		return lType
+	}
+
+	return LanguageTypeDefault
+}

@@ -1,0 +1,30 @@
+package task
+
+import (
+	"sync"
+)
+
+var (
+	mu      sync.Mutex
+	running map[string]bool
+)
+
+func init() {
+	running = make(map[string]bool)
+}
+
+func isRunning(jobName string) bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if running[jobName] {
+		return true
+	}
+	running[jobName] = true
+	return false
+}
+
+func stopJob(jobName string) {
+	mu.Lock()
+	defer mu.Unlock()
+	delete(running, jobName)
+}

@@ -1,0 +1,40 @@
+package service
+
+import (
+	"{{ .Module }}/internal/bootstrap"
+	"{{ .Module }}/pkg/clickhouse"
+	"{{ .Module }}/pkg/es"
+	"{{ .Module }}/pkg/log"
+	"{{ .Module }}/pkg/mysql"
+	"{{ .Module }}/pkg/redis"
+	"{{ .Module }}/pkg/s3"
+	"fmt"
+	"os"
+	"testing"
+)
+
+var skipTestMain = false
+
+func TestMain(m *testing.M) {
+	if skipTestMain {
+		return
+	}
+	fileName := "../../settings/local.json"
+	cfg, err := bootstrap.Init(&fileName)
+	if err != nil {
+		fmt.Println("Init  Err:", err.Error())
+		return
+	}
+	log.Init(&cfg.Logger)
+	_ = clickhouse.Init(&cfg.ClickHouse)
+	_ = mysql.Init(&cfg.MySql)
+	redis.Init(&cfg.Redis)
+	_ = s3.Init(&cfg.S3)
+	if err = es.Init(&cfg.Elastic); err != nil {
+		log.Log.Error("Init ElasticSearch Err:", err.Error())
+	}
+
+	Init()
+	code := m.Run()
+	os.Exit(code)
+}

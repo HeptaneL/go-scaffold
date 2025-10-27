@@ -1,0 +1,6 @@
+CREATE TABLE users(
+  `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `create_time` bigint(20) UNSIGNED NULL DEFAULT NULL COMMENT '创建时间',
+  `update_time` bigint(20) UNSIGNED NULL DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE
+) engine=innodb default charset=utf8mb4 collate=utf8mb4_unicode_ci comment='用户表';

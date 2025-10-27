@@ -1,0 +1,92 @@
+package router
+
+import (
+	"{{ .Module }}/internal/bootstrap"
+	"{{ .Module }}/pkg/log"
+	"net"
+	"net/http"
+	"time"
+
+	"github.com/gin-gonic/gin"
+)
+
+func InitDefaultRouter(cfg *bootstrap.Configuration) *gin.Engine {
+	if cfg.App.IsProd() {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	r := gin.New()
+	r.Use(log.GinLogger(log.Log, "/", "/ping", "/api/v1/ping", "/admin/v1/ping"), gin.Recovery(), Cors())
+	r.HandleMethodNotAllowed = true
+	r.NoMethod(func(c *gin.Context) {
+		c.JSON(http.StatusMethodNotAllowed, gin.H{
+			"result": false,
+			"error":  "Method Not Allowed",
+		})
+		return
+	})
+	r.NoRoute(func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, gin.H{
+			"result": false,
+			"error":  "Endpoint Not Found",
+		})
+		return
+	})
+	// 最大运行上传文件大小
+	r.MaxMultipartMemory = cfg.Server.MaxMultipartSize
+
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 15 * time.Second,
+		}).DialContext,
+
+		// 保守但足够的连接池设置 - 降低内存占用
+		MaxIdleConns:        50, // 降低全局空闲连接（原来可能更高）
+		MaxIdleConnsPerHost: 8,  // 每个主机空闲连接适中
+		MaxConnsPerHost:     25, // 每个主机总连接数（支持并发）
+
+		// 更短的超时 - 更快释放资源
+		IdleConnTimeout:       30 * time.Second, // 缩短空闲超时
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+
+		// 缓冲区优化 - 降低内存占用
+		WriteBufferSize: 4 * 1024, // 4KB
+		ReadBufferSize:  4 * 1024, // 4KB
+	}
+
+	http.DefaultTransport = transport
+	http.DefaultClient = &http.Client{
+		Transport: transport,
+		Timeout:   30 * time.Second,
+	}
+
+	return r
+}
+
+func Cors() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		method := c.Request.Method // 请求方法
+
+		c.Header("Access-Control-Allow-Origin", "*")                                                  // 这是允许访问所有域
+		c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS,HEAD, PUT, PATCH,DELETE,UPDATE") // 服务器支持的所有跨域请求的方法,为了避免浏览次请求的多次'预检'请求
+		// header 的类型
+		c.Header("Access-Control-Allow-Headers", "Authorization, solana-client,X-Forwarded-For,Content-Length, X-CSRF-Token, Token,session,X_Requested_With,Accept, Origin, Host, Connection, Accept-Encoding, Accept-Language,DNT, X-CustomHeader, Keep-Alive, User-Agent, X-Requested-With, If-Modified-Since, Cache-Control, Content-Type, Pragma, platform")
+
+		// 允许跨域设置                                                                                                      可以返回其他子段
+		c.Header("Access-Control-Expose-Headers", "Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers,Cache-Control,Content-Language,Content-Type,Expires,Last-Modified,Pragma,FooBar,Origin") // 跨域关键设置 让浏览器可以解析
+		c.Header("Access-Control-Max-Age", "86400")                                                                                                                                                                   // 缓存请求信息 单位为秒
+		c.Header("Access-Control-Allow-Credentials", "false")                                                                                                                                                         //  跨域请求是否需要带cookie信息 默认设置为true
+		c.Set("content-type", "application/json")                                                                                                                                                                     // 设置返回格式是json
+
+		// 放行所有OPTIONS方法
+		if method == "OPTIONS" {
+			c.JSON(http.StatusOK, "Options Request!")
+		}
+
+		// 处理请求
+		c.Next()
+	}
+}

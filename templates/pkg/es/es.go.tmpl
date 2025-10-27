@@ -1,0 +1,88 @@
+package es
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/olivere/elastic/v7"
+)
+
+var EsClient *elastic.Client
+var EsCtx = context.Background()
+
+type ElasticConfig struct {
+	Url      string `json:"url"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// Init 这里一定要使用ES7.x版本，不然会导致语法不兼容
+func Init(esConfig *ElasticConfig) error {
+	var err error
+	EsClient, err = elastic.NewClient(
+		elastic.SetURL(esConfig.Url),
+		//docker
+		elastic.SetSniff(false),
+		elastic.SetBasicAuth(esConfig.Username, esConfig.Password),
+		// 设置监控检查时间间隔
+		elastic.SetHealthcheckInterval(10*time.Second),
+		// 开启健康检查
+		elastic.SetHealthcheck(true),
+		// 重试策略
+		elastic.SetRetrier(elastic.NewBackoffRetrier(elastic.NewSimpleBackoff(500, 500, 500, 500, 500))),
+	)
+
+	if err != nil {
+		fmt.Println("EsClientInit Err:", err)
+		return err
+	}
+	EsClient.Start()
+	return nil
+}
+
+func InitIndex(mapping string, index string) error {
+	exists, err := EsClient.IndexExists(string(index)).Do(EsCtx)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		_, err := EsClient.CreateIndex(string(index)).BodyString(mapping).Do(EsCtx)
+		if err != nil {
+			fmt.Printf("Init Es Index [%s] Err:%v", index, err)
+			return err
+		}
+	}
+	return nil
+}
+
+func MGetDocs(idList []string, index string) ([]*elastic.GetResult, error) {
+	var mGetItems []*elastic.MultiGetItem
+	for _, id := range idList {
+		item := elastic.NewMultiGetItem().Index(string(index)).Id(id)
+		mGetItems = append(mGetItems, item)
+	}
+	esResponse, err := EsClient.Mget().Add(mGetItems...).Do(EsCtx)
+	if err != nil {
+		return nil, err
+	}
+	return esResponse.Docs, nil
+}
+
+// AddDoc 存在会自动更新，不存在则添加
+func AddDoc(id string, doc interface{}, index string) (*elastic.IndexResponse, error) {
+	rsp, err := EsClient.Index().Index(string(index)).Id(id).BodyJson(doc).Do(EsCtx)
+	if err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// DeleteDoc 删除doc
+func DeleteDoc(id string, index string) error {
+	_, err := EsClient.Delete().Index(string(index)).Id(id).Do(EsCtx)
+	if err != nil {
+		return err
+	}
+	return nil
+}

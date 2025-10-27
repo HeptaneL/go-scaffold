@@ -1,0 +1,59 @@
+//go:build !windows
+// +build !windows
+
+package kafka_cloud
+
+import (
+	"{{ .Module }}/pkg/log"
+	"fmt"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+)
+
+func NewProducer(kafkaConfig KafkaConfig) (*kafka.Producer, error) {
+	conf := &kafka.ConfigMap{
+		"bootstrap.servers": kafkaConfig.BootstrapServers,
+		// --- 可靠性相关 ---
+		"acks":                                  "all", // 等待所有副本确认（最安全）
+		"enable.idempotence":                    true,  // 开启幂等发送（防止重复消息）
+		"max.in.flight.requests.per.connection": 5,     // 幂等要求<5，否则可能乱序
+		"retries":                               10,    // 网络或临时错误时自动重试
+		"retry.backoff.ms":                      100,   // 每次重试间隔
+
+		// --- 性能相关 ---
+		"linger.ms":                    5,        // 批量等待时间（增加吞吐）
+		"batch.size":                   32768,    // 批次大小（默认16KB，可调）
+		"compression.type":             "snappy", // 压缩算法（snappy/lz4/zstd 都不错）
+		"queue.buffering.max.kbytes":   10240,    // 最大缓冲区(10MB)
+		"queue.buffering.max.messages": 100000,   // 最大缓冲消息数
+
+		// --- 网络与连接 ---
+		"socket.keepalive.enable":  true,  // 保持连接活跃
+		"message.timeout.ms":       30000, // 超时未确认则失败
+		"reconnect.backoff.ms":     100,   // 初始重连间隔
+		"reconnect.backoff.max.ms": 10000, // 最大重连间隔
+		"metadata.max.age.ms":      60000, // 定期刷新元数据（防止旧leader问题）
+
+		// --- 可观测性 ---
+		"statistics.interval.ms": 60000, // 定期上报统计信息
+	}
+	producer, err := kafka.NewProducer(conf)
+	if err != nil {
+		fmt.Println("Kafka Producer connect error!")
+		return nil, err
+	}
+
+	log.Log.Infof("Kafka Producer connect successfully: %s", kafkaConfig.BootstrapServers)
+
+	go func() {
+		for e := range producer.Events() {
+			switch ev := e.(type) {
+			case *kafka.Message:
+				if ev.TopicPartition.Error != nil {
+					fmt.Printf("Delivery failed: %v\n err: %v\n message: %v \r\n", ev.TopicPartition, ev.TopicPartition.Error, string(ev.Value))
+				}
+			}
+		}
+	}()
+	return producer, nil
+}

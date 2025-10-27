@@ -1,0 +1,17 @@
+package router
+
+import (
+	admin_handler "{{ .Module }}/internal/app/admin"
+	"{{ .Module }}/internal/bootstrap"
+
+	"github.com/gin-gonic/gin"
+)
+
+func InitAdminRouter(cfg *bootstrap.Configuration) *gin.Engine {
+	r := InitDefaultRouter(cfg)
+	v1 := r.Group("/admin/v1")
+	{
+		v1.GET("/ping", admin_handler.Pong)
+	}
+	return r
+}

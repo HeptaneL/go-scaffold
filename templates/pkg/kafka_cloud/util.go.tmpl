@@ -1,0 +1,36 @@
+//go:build !windows
+// +build !windows
+
+package kafka_cloud
+
+import (
+	"context"
+	"runtime"
+	"time"
+
+	"github.com/aws/aws-msk-iam-sasl-signer-go/signer"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+)
+
+var region string
+
+func retrieveToken() (kafka.OAuthBearerToken, error) {
+	var oauthBearerToken kafka.OAuthBearerToken
+	token, expiredMs, err := signer.GenerateAuthToken(context.Background(), region)
+	if err != nil {
+		return oauthBearerToken, err
+	}
+	expiration := time.UnixMilli(expiredMs)
+	oauthBearerToken = kafka.OAuthBearerToken{
+		TokenValue: token,
+		Expiration: expiration,
+		Principal:  "admin",
+	}
+	return oauthBearerToken, nil
+}
+
+func GetCurrentGoroutineStack() string {
+	var buf [4096]byte
+	n := runtime.Stack(buf[:], false)
+	return string(buf[:n])
+}

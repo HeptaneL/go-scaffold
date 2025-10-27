@@ -1,0 +1,9 @@
+package log
+
+type LoggerConfig struct {
+	Level    string `json:"level"`
+	Encoder  string `json:"encoder"`
+	Write    bool   `json:"write"`
+	Path     string `json:"path"`
+	FileName string `json:"file_name"`
+}

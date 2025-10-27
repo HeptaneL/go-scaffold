@@ -1,0 +1,11 @@
+package admin_handler
+
+import (
+	"{{ .Module }}/pkg/render"
+
+	"github.com/gin-gonic/gin"
+)
+
+func Pong(c *gin.Context) {
+	render.JsonOk(c, "Pong")
+}

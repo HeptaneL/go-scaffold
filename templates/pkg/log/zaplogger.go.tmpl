@@ -1,0 +1,103 @@
+package log
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/DeRuina/timberjack"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+)
+
+const (
+	DefaultZapBufferSize = 256 * 1024 // 256KB 缓冲
+	DefaultZapLogDir     = "./debot/logs"
+	DefaultZapLogFile    = "daily.log"
+)
+
+var Alarm = zap.Bool("alarm", true)
+
+var Log *zap.SugaredLogger
+
+func Init(cfg *LoggerConfig) {
+	encoderConfig := zapcore.EncoderConfig{
+		TimeKey:        "time",
+		LevelKey:       "level",
+		NameKey:        "logger",
+		CallerKey:      "caller",
+		FunctionKey:    zapcore.OmitKey,
+		MessageKey:     "msg",
+		StacktraceKey:  "stacktrace",
+		LineEnding:     zapcore.DefaultLineEnding,
+		EncodeLevel:    zapcore.LowercaseLevelEncoder,
+		EncodeTime:     zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05.000"),
+		EncodeDuration: zapcore.SecondsDurationEncoder,
+		EncodeCaller:   zapcore.ShortCallerEncoder,
+	}
+
+	zapLevel, err := zapcore.ParseLevel(cfg.Level)
+	if err != nil {
+		zapLevel = zapcore.InfoLevel
+	}
+
+	var zapEncoder zapcore.Encoder
+	switch strings.ToLower(cfg.Encoder) {
+	case "console", "text":
+		zapEncoder = zapcore.NewConsoleEncoder(encoderConfig)
+	default:
+		zapEncoder = zapcore.NewJSONEncoder(encoderConfig)
+	}
+
+	coreStdout := zapcore.NewCore(
+		zapEncoder,
+		&zapcore.BufferedWriteSyncer{
+			WS:            zapcore.AddSync(os.Stdout),
+			Size:          DefaultZapBufferSize,
+			FlushInterval: time.Second,
+		},
+		zapLevel,
+	)
+
+	var zapCores = []zapcore.Core{coreStdout}
+
+	if cfg.Write {
+		logDir := DefaultZapLogDir
+		if cfg.Path != "" {
+			logDir = cfg.Path
+		}
+
+		hostname, err := os.Hostname()
+		if err != nil {
+			hostname = "unknown"
+		}
+
+		logFile := hostname + "." + DefaultZapLogFile
+		if cfg.FileName != "" {
+			logFile = cfg.FileName
+		}
+
+		loggerRotate := &timberjack.Logger{
+			Filename:         filepath.Join(logDir, logFile), // Choose an appropriate path
+			MaxSize:          4096,                           // max 4G
+			MaxAge:           7,                              // days
+			LocalTime:        true,                           // default: false (use UTC)
+			Compress:         false,                          // disable gzip
+			RotationInterval: 24 * time.Hour,                 // Rotate daily if no other rotation met
+			BackupTimeFormat: "2006-01-02",                   // Rotated files will have format <logfilename>-2006-01-02-15-04-05-<rotationCriterion>-timberjack.log
+		}
+
+		zapCores = append(zapCores, zapcore.NewCore(
+			zapEncoder,
+			&zapcore.BufferedWriteSyncer{
+				WS:            zapcore.AddSync(loggerRotate),
+				Size:          DefaultZapBufferSize,
+				FlushInterval: time.Second,
+			},
+			zapLevel,
+		))
+	}
+
+	Log = zap.New(zapcore.NewTee(zapCores...), zap.AddCaller()).Sugar()
+}

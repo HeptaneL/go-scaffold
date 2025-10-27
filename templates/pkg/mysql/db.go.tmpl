@@ -1,0 +1,78 @@
+package mysql
+
+import (
+	"fmt"
+	"sync"
+	"time"
+
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+)
+
+var (
+	once sync.Once
+	db   *gorm.DB
+)
+
+type MysqlConfig struct {
+	Driver   string `json:"driver"`
+	Host     string `json:"host"`
+	Port     string `json:"port"`
+	User     string `json:"user"`
+	Password string `json:"password"`
+	DbName   string `json:"db_name"`
+}
+
+func Init(cfg *MysqlConfig) error {
+	var err error
+	once.Do(
+		func() {
+			dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+				cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.DbName)
+			db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
+				Logger: logger.Default.LogMode(logger.Info),
+			})
+			if err != nil {
+				return
+			}
+			idb, _ := db.DB()
+			idb.SetConnMaxIdleTime(120 * time.Second)
+			idb.SetConnMaxLifetime(7200 * time.Second)
+			idb.SetMaxOpenConns(200)
+			idb.SetMaxIdleConns(10)
+			if err := idb.Ping(); err != nil {
+				return
+			}
+		})
+
+	return nil
+}
+
+func GetDb() *gorm.DB {
+	return db
+}
+
+func GetTableName(v interface{}) string {
+	stat := gorm.Statement{DB: DB()}
+	err := stat.Parse(v)
+	if err != nil {
+		return ""
+	}
+	return stat.Schema.Table
+}
+
+func DB() *gorm.DB {
+	return db
+}
+
+func Close() error {
+	fmt.Println("close mysql connect")
+	if db != nil {
+		idb, err := db.DB()
+		if err == nil {
+			idb.Close()
+		}
+	}
+	return nil
+}
